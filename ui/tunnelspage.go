@@ -187,6 +187,13 @@ func (tp *TunnelsPage) CreateToolbar() error {
 	exportAction.SetToolTip(l18n.Sprintf("Export all tunnels to zip"))
 	exportAction.Triggered().Attach(tp.onExportTunnels)
 	tp.listToolbar.Actions().Add(exportAction)
+	tp.listToolbar.Actions().Add(walk.NewSeparatorAction())
+
+	pingAction := walk.NewAction()
+	pingAction.SetText(l18n.Sprintf("Ping"))
+	pingAction.SetToolTip(l18n.Sprintf("Ping all servers"))
+	pingAction.Triggered().Attach(tp.onPingAll)
+	tp.listToolbar.Actions().Add(pingAction)
 
 	fixContainerWidthToToolbarWidth := func() {
 		toolbarWidth := tp.listToolbar.SizeHint().Width
@@ -225,6 +232,10 @@ func (tp *TunnelsPage) CreateToolbar() error {
 	exportAction2.Triggered().Attach(tp.onExportTunnels)
 	exportAction2.SetVisible(IsAdmin)
 	contextMenu.Actions().Add(exportAction2)
+	pingAction2 := walk.NewAction()
+	pingAction2.SetText(l18n.Sprintf("&Ping all servers"))
+	pingAction2.Triggered().Attach(tp.onPingAll)
+	contextMenu.Actions().Add(pingAction2)
 	contextMenu.Actions().Add(walk.NewSeparatorAction())
 	editAction := walk.NewAction()
 	editAction.SetText(l18n.Sprintf("Edit &selected tunnel…"))
@@ -578,6 +589,10 @@ func (tp *TunnelsPage) onExportTunnels() {
 	}
 
 	tp.exportTunnels(dlg.FilePath)
+}
+
+func (tp *TunnelsPage) onPingAll() {
+	tp.listView.PingAll()
 }
 
 func (tp *TunnelsPage) swapFiller(enabled bool) bool {

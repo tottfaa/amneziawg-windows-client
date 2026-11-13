@@ -24,6 +24,7 @@ type ListModel struct {
 
 	tunnels           []manager.Tunnel
 	lastObservedState map[manager.Tunnel]manager.TunnelState
+	pingResults       map[string]string
 }
 
 var cachedListViewIconsForWidthAndState = make(map[widthAndState]*walk.Bitmap)
@@ -36,7 +37,11 @@ func (t *ListModel) Value(row, col int) any {
 	if col != 0 || row < 0 || row >= len(t.tunnels) {
 		return ""
 	}
-	return t.tunnels[row].Name
+	name := t.tunnels[row].Name
+	if result, ok := t.pingResults[name]; ok {
+		return name + "  ·  " + result
+	}
+	return name
 }
 
 func (t *ListModel) Sort(col int, order walk.SortOrder) error {
@@ -55,6 +60,7 @@ type ListView struct {
 	tunnelChangedCB        *manager.TunnelChangeCallback
 	tunnelsChangedCB       *manager.TunnelsChangeCallback
 	tunnelsUpdateSuspended int32
+	pingInProgress         int32
 }
 
 func NewListView(parent walk.Container) (*ListView, error) {
@@ -71,6 +77,7 @@ func NewListView(parent walk.Container) (*ListView, error) {
 
 	model := new(ListModel)
 	model.lastObservedState = make(map[manager.Tunnel]manager.TunnelState)
+	model.pingResults = make(map[string]string)
 	tv.SetModel(model)
 	tv.SetLastColumnStretched(true)
 	tv.SetHeaderHidden(true)
@@ -233,6 +240,7 @@ func (tv *ListView) Load(asyncUI bool) {
 				tv.model.tunnels = append(tv.model.tunnels[:i], tv.model.tunnels[i+1:]...)
 				tv.model.PublishRowsRemoved(i, i) // TODO: Do we have to call that everytime or can we pass a range?
 				delete(tv.model.lastObservedState, tunnel)
+				delete(tv.model.pingResults, tunnel.Name)
 			}
 		}
 		didAdd := false
@@ -259,6 +267,35 @@ func (tv *ListView) Load(asyncUI bool) {
 	} else {
 		doUI()
 	}
+}
+
+func (tv *ListView) setPingResult(tunnelName, result string) {
+	for i := range tv.model.tunnels {
+		if tv.model.tunnels[i].Name == tunnelName {
+			tv.model.pingResults[tunnelName] = result
+			tv.model.PublishRowChanged(i)
+			return
+		}
+	}
+}
+
+func (tv *ListView) PingAll() {
+	if !atomic.CompareAndSwapInt32(&tv.pingInProgress, 0, 1) {
+		return
+	}
+	tunnels := make([]manager.Tunnel, len(tv.model.tunnels))
+	copy(tunnels, tv.model.tunnels)
+	for _, tunnel := range tunnels {
+		tv.setPingResult(tunnel.Name, "…")
+	}
+	go func() {
+		defer atomic.StoreInt32(&tv.pingInProgress, 0)
+		pingTunnels(tunnels, func(tunnel manager.Tunnel, result pingResult) {
+			tv.Synchronize(func() {
+				tv.setPingResult(tunnel.Name, result.String())
+			})
+		})
+	}()
 }
 
 func (tv *ListView) selectTunnel(tunnelName string) {
