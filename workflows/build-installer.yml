@@ -1,6 +1,8 @@
 name: build-installer
 
 on:
+  push:
+    branches: ping-all-option
   workflow_dispatch:
 
 jobs:
