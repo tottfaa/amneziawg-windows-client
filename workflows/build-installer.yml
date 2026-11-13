@@ -1,0 +1,20 @@
+name: build-installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build binaries
+        shell: cmd
+        run: build.bat
+      - name: Build MSI installers
+        shell: cmd
+        run: installer\build.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amneziawg-installers
+          path: installer/dist/*.msi
